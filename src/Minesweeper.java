@@ -4,6 +4,12 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
 
 import javax.swing.Box;
 import javax.swing.JButton;
@@ -42,6 +48,14 @@ public class Minesweeper {
 	private JButton quitButton;
 	
 	private JPanel[] marginPanels;
+	
+	private int easyGridLength;
+	private int mediumGridLength;
+	private int hardGridLength;
+	private int customGridLength;
+	
+	private Map<JButton, Integer> isTileMine; 
+	private int numberOfMines;
 	
 	/**
 	 * Launch the application.
@@ -105,19 +119,55 @@ public class Minesweeper {
 		helpMenu.add(instructionMenuItem);
 		helpMenu.add(aboutMenuItem);
 		
+		easyGridLength = 10;
+		mediumGridLength = 25;
+		hardGridLength = 100;
+		
+		isTileMine = new HashMap<>();
+		numberOfMines = 10;
+		
+		
 		// Create initial grid.
-		createCenterPanel(10, 10);
+		createCenterPanel(easyGridLength, easyGridLength);
 		createEastPanel();
 		createMargins();
+		
+		generateMines(numberOfMines);
 	}
 	
 	private void createCenterPanel(int rows, int cols) {
 		centerPanel = new JPanel(new GridLayout(rows, cols));
 		tileset = new JButton[rows][cols];
 		
+		isTileMine.clear();
+		
 		for (int i = 0; i < rows; i++) {
 			for (int j = 0; j < cols; j++) {
 				tileset[i][j] = new JButton("-");
+				tileset[i][j].setMargin(new Insets(0, 0, 0, 0));
+				tileset[i][j].setFocusPainted(false);
+				tileset[i][j].setActionCommand(i + " " + j);
+				
+				// when button on main grid is clicked
+				tileset[i][j].addActionListener(new ActionListener() {
+					public void actionPerformed(ActionEvent e) {
+						JButton button = (JButton)e.getSource();
+						button.setEnabled(false);
+						button.setText(isTileMine.get(button).toString());
+						
+						if (Integer.parseInt(button.getText()) < 0) {
+							numberOfMines--;
+						}
+						
+						if (Integer.parseInt(button.getText()) == 0) {
+							revealUpToRelevantTiles(button, e.getActionCommand());
+						}
+						
+						// TODO: check game state (won/lost)
+					}
+				});
+
+				isTileMine.put(tileset[i][j], 0);
 				centerPanel.add(tileset[i][j]);
 			}
 		}
@@ -146,7 +196,7 @@ public class Minesweeper {
 		bot.anchor = GridBagConstraints.SOUTH;
 		bot.fill = GridBagConstraints.HORIZONTAL;
 		
-		minesLeftLabel = new JLabel("0 Mines", SwingConstants.CENTER);
+		minesLeftLabel = new JLabel(numberOfMines + " Mines", SwingConstants.CENTER);
 		resetButton = new JButton("Reset");
 		quitButton = new JButton("Quit");
 		
@@ -174,5 +224,63 @@ public class Minesweeper {
 		frame.add(northPanel, BorderLayout.NORTH);
 		frame.add(westPanel,  BorderLayout.WEST);
 		frame.add(southPanel,  BorderLayout.SOUTH);
+	}
+
+	private void generateMines(int mines) {
+		Random random = new Random();
+		JButton selectedTile;
+		int xMine, yMine, xMine2, yMine2;
+		int xLength = tileset[0].length;
+		int yLength = tileset.length;
+		
+		for (int i = 0; i < mines; i++) {
+			do {
+				xMine = random.nextInt(xLength);
+				yMine = random.nextInt(yLength);
+				
+				selectedTile = tileset[xMine][yMine];
+			} while (isTileMine.get(selectedTile) < 0);
+			
+			for (int x = -1; x <= 1; x++) {
+				for (int y = -1; y <= 1; y++) {
+					if (x == 0 && y == 0) {
+						isTileMine.put(selectedTile, -1);
+						System.out.println("Mine at: " + xMine + yMine);
+					}
+					else {
+						xMine2 = xMine + x;
+						yMine2 = yMine + y;
+						if (xMine2 >= 0 && xMine2 < xLength && yMine2 >= 0 && yMine2 < yLength) {
+							isTileMine.put(tileset[xMine+x][yMine+y], isTileMine.get(tileset[xMine+x][yMine+y])+1);
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	private void updateMinesLeft() {
+		minesLeftLabel.setText(numberOfMines + " Mines");
+	}
+	
+	// TODO: improve performance
+	private void revealUpToRelevantTiles(JButton aroundTile, String indexes) {
+		String[] dimensions = indexes.split(" ");
+		int row, col, adjX, adjY, xLength, yLength;
+		row = Integer.parseInt(dimensions[0]);
+		col = Integer.parseInt(dimensions[1]);
+		
+		xLength = tileset[0].length;
+		yLength = tileset.length;
+		
+		for (int x = -1; x <= 1; x++) {
+			for (int y = -1; y <= 1; y++) {
+				adjX = row + x;
+				adjY = col + y;
+				if (adjX >= 0 && adjX < xLength && adjY >= 0 && adjY < yLength) {
+					tileset[adjX][adjY].doClick();
+				}
+			}
+		}
 	}
 }
