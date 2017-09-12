@@ -1,13 +1,19 @@
 import java.awt.BorderLayout;
 import java.awt.EventQueue;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.Insets;
 
+import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 
 
@@ -30,7 +36,8 @@ public class Minesweeper {
 	private JPanel centerPanel;
 	private JButton[][] tileset;
 	
-	private JPanel southPanel;
+	private JPanel eastPanel;
+	private JLabel minesLeftLabel;
 	private JButton resetButton;
 	private JButton quitButton;
 	
@@ -65,7 +72,7 @@ public class Minesweeper {
 	private void initialize() {
 		// Create window frame.
 		frame = new JFrame();
-		frame.setBounds(100, 100, 450, 300);
+		frame.setBounds(100, 100, 500, 400);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		// Create menu bar.
 		menuBar = new JMenuBar();
@@ -100,7 +107,7 @@ public class Minesweeper {
 		
 		// Create initial grid.
 		createCenterPanel(10, 10);
-		createSouthPanel();
+		createEastPanel();
 		createMargins();
 	}
 	
@@ -118,16 +125,37 @@ public class Minesweeper {
 		frame.add(centerPanel, BorderLayout.CENTER);
 	}
 	
-	private void createSouthPanel() {
-		southPanel = new JPanel();
+	private void createEastPanel() {
+		eastPanel = new JPanel();
+		eastPanel.setLayout(new GridBagLayout());
 		
+		GridBagConstraints top = new GridBagConstraints();
+		top.gridwidth = GridBagConstraints.REMAINDER;
+		top.insets = new Insets(3, 3, 0, 3);
+		top.anchor = GridBagConstraints.NORTH;
+		top.fill = GridBagConstraints.HORIZONTAL;
+		
+		GridBagConstraints filler = new GridBagConstraints();
+		filler.gridwidth = GridBagConstraints.REMAINDER;
+		filler.insets = new Insets(0, 0, 0, 3);
+		filler.weighty = 1;
+		
+		GridBagConstraints bot = new GridBagConstraints();
+		bot.gridwidth = GridBagConstraints.REMAINDER;
+		bot.insets = new Insets(0, 3, 3, 3);
+		bot.anchor = GridBagConstraints.SOUTH;
+		bot.fill = GridBagConstraints.HORIZONTAL;
+		
+		minesLeftLabel = new JLabel("0 Mines", SwingConstants.CENTER);
 		resetButton = new JButton("Reset");
 		quitButton = new JButton("Quit");
 		
-		southPanel.add(resetButton);
-		southPanel.add(quitButton);
+		eastPanel.add(minesLeftLabel, top);
+		eastPanel.add(Box.createVerticalGlue(), filler);
+		eastPanel.add(resetButton, bot);
+		eastPanel.add(quitButton, bot);
 		
-		frame.add(southPanel, BorderLayout.SOUTH);
+		frame.add(eastPanel, BorderLayout.EAST);
 	}
 	
 	private void createMargins() {
@@ -135,9 +163,9 @@ public class Minesweeper {
 		
 		JPanel northPanel = new JPanel();
 		JPanel westPanel = new JPanel();
-		JPanel eastPanel = new JPanel();
+		JPanel southPanel = new JPanel();
 		
-		marginPanels = new JPanel[] { northPanel, westPanel, eastPanel };
+		marginPanels = new JPanel[] { northPanel, westPanel, southPanel };
 		
 		for (int i = 0; i < marginPanels.length; i++) {
 			marginPanels[i].setBorder(margin);
@@ -145,6 +173,6 @@ public class Minesweeper {
 		
 		frame.add(northPanel, BorderLayout.NORTH);
 		frame.add(westPanel,  BorderLayout.WEST);
-		frame.add(eastPanel,  BorderLayout.EAST);
+		frame.add(southPanel,  BorderLayout.SOUTH);
 	}
 }
