@@ -1,4 +1,5 @@
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.EventQueue;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -8,6 +9,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Random;
 
@@ -54,8 +56,19 @@ public class Minesweeper {
 	private int hardGridLength;
 	private int customGridLength;
 	
+	private int easyNumberOfMines;
+	private int mediumNumberOfMines;
+	private int hardNumberOfMines;
+	private int customNumberOfMines;
+	
 	private Map<JButton, Integer> isTileMine; 
+	private Map<JButton, Boolean> isTileVisited;
+	private int numberOfTiles;
 	private int numberOfMines;
+	private int numberOfFreeTilesLeft;
+	private int difficultyLevel;
+	
+	private LinkedList<JButton> queue;
 	
 	/**
 	 * Launch the application.
@@ -87,7 +100,7 @@ public class Minesweeper {
 		// Create window frame.
 		frame = new JFrame();
 		frame.setBounds(100, 100, 500, 400);
-		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 		// Create menu bar.
 		menuBar = new JMenuBar();
 		frame.setJMenuBar(menuBar);
@@ -121,10 +134,19 @@ public class Minesweeper {
 		
 		easyGridLength = 10;
 		mediumGridLength = 25;
-		hardGridLength = 100;
+		hardGridLength = 50;
+		
+		easyNumberOfMines = 10;			// 10% mine
+		mediumNumberOfMines = 125;		// 20% mine
+		hardNumberOfMines = 875;		// 35% mine
+		
 		
 		isTileMine = new HashMap<>();
-		numberOfMines = 10;
+		isTileVisited = new HashMap<>();
+		numberOfMines = easyNumberOfMines;
+		difficultyLevel = 1;
+		
+		queue = new LinkedList<>();
 		
 		
 		// Create initial grid.
@@ -138,8 +160,9 @@ public class Minesweeper {
 	private void createCenterPanel(int rows, int cols) {
 		centerPanel = new JPanel(new GridLayout(rows, cols));
 		tileset = new JButton[rows][cols];
-		
-		isTileMine.clear();
+
+		numberOfTiles = rows * cols;
+		numberOfFreeTilesLeft = numberOfTiles - numberOfMines;
 		
 		for (int i = 0; i < rows; i++) {
 			for (int j = 0; j < cols; j++) {
@@ -156,18 +179,22 @@ public class Minesweeper {
 						button.setText(isTileMine.get(button).toString());
 						
 						if (Integer.parseInt(button.getText()) < 0) {
-							numberOfMines--;
+							minesLeftLabel.setText("You lost.");
+							revealAllMines();
+						} else if (Integer.parseInt(button.getText()) == 0) {
+							revealAdjacentTiles(button, e.getActionCommand());
+						} else if (Integer.parseInt(button.getText()) > 0) {
+							revealSafeTile(button);
 						}
 						
-						if (Integer.parseInt(button.getText()) == 0) {
-							revealUpToRelevantTiles(button, e.getActionCommand());
+						if (numberOfFreeTilesLeft == 0) {
+							minesLeftLabel.setText("You win!");
 						}
-						
-						// TODO: check game state (won/lost)
 					}
 				});
 
 				isTileMine.put(tileset[i][j], 0);
+				isTileVisited.put(tileset[i][j], false);
 				centerPanel.add(tileset[i][j]);
 			}
 		}
@@ -197,8 +224,20 @@ public class Minesweeper {
 		bot.fill = GridBagConstraints.HORIZONTAL;
 		
 		minesLeftLabel = new JLabel(numberOfMines + " Mines", SwingConstants.CENTER);
+		
 		resetButton = new JButton("Reset");
+		resetButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				reset();
+			}
+		});
+		
 		quitButton = new JButton("Quit");
+		quitButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				quit();
+			}
+		});
 		
 		eastPanel.add(minesLeftLabel, top);
 		eastPanel.add(Box.createVerticalGlue(), filler);
@@ -250,7 +289,9 @@ public class Minesweeper {
 					else {
 						xMine2 = xMine + x;
 						yMine2 = yMine + y;
-						if (xMine2 >= 0 && xMine2 < xLength && yMine2 >= 0 && yMine2 < yLength) {
+						
+						if (xMine2 >= 0 && xMine2 < xLength && yMine2 >= 0 && yMine2 < yLength &&
+							isTileMine.get(tileset[xMine2][yMine2]) != -1) {
 							isTileMine.put(tileset[xMine+x][yMine+y], isTileMine.get(tileset[xMine+x][yMine+y])+1);
 						}
 					}
@@ -263,23 +304,106 @@ public class Minesweeper {
 		minesLeftLabel.setText(numberOfMines + " Mines");
 	}
 	
-	// TODO: improve performance
-	private void revealUpToRelevantTiles(JButton aroundTile, String indexes) {
+	private void revealAdjacentTiles(JButton tile, String indexes) {
+		if (isTileVisited.get(tile)) {
+			return;
+		}
+		
 		String[] dimensions = indexes.split(" ");
-		int row, col, adjX, adjY, xLength, yLength;
+		int row, col, xLength, yLength;
+		
 		row = Integer.parseInt(dimensions[0]);
 		col = Integer.parseInt(dimensions[1]);
-		
 		xLength = tileset[0].length;
 		yLength = tileset.length;
 		
-		for (int x = -1; x <= 1; x++) {
-			for (int y = -1; y <= 1; y++) {
-				adjX = row + x;
-				adjY = col + y;
-				if (adjX >= 0 && adjX < xLength && adjY >= 0 && adjY < yLength) {
-					tileset[adjX][adjY].doClick();
+		queue.add(tile);
+		
+		while (!queue.isEmpty()) {
+			JButton currentTile = queue.remove();
+			revealSafeTile(currentTile);
+			isTileVisited.put(currentTile, true);
+			
+			if (row < 0 || row >= xLength || col < 0 || col >= yLength) {
+				return;
+			} else {
+				if (isTileMine.get(currentTile) == 0) {
+					// check surroundings
+					if (row - 1 >= 0) {
+						revealAdjacentTiles(tileset[row-1][col], row-1, col);
+					}
+					if (row + 1 < xLength) {
+						revealAdjacentTiles(tileset[row+1][col], row+1, col);
+					}
+					if (col - 1 >= 0) {
+						revealAdjacentTiles(tileset[row][col-1], row, col-1);
+					}
+					if (col + 1 < yLength) {
+						revealAdjacentTiles(tileset[row][col+1], row, col+1);
+					}
 				}
+			}
+		}
+	}
+	
+	// overloaded helper function
+	private void revealAdjacentTiles(JButton tile, int row, int col) {
+		revealAdjacentTiles(tile, row + " " + col);
+	}
+	
+	private void revealSafeTile(JButton tile) {
+		tile.setEnabled(false);
+		tile.setText(isTileMine.get(tile).toString());
+		numberOfFreeTilesLeft--;
+	}
+	
+	private void reset() {
+		
+		switch (difficultyLevel) {
+			case 1:
+				numberOfMines = easyNumberOfMines;
+				break;
+			case 2:
+				numberOfMines = mediumNumberOfMines;
+				break;
+			case 3:
+				numberOfMines = hardNumberOfMines;
+				break;
+			case 4:
+				numberOfMines = customNumberOfMines;
+				break;
+		}
+		
+		numberOfFreeTilesLeft = numberOfTiles - numberOfMines;
+		
+		updateMinesLeft();
+		
+		for (JButton tile : isTileMine.keySet()) {
+			isTileMine.put(tile, 0);
+			
+			// reset UI of tile
+			tile.setText("-");
+			tile.setEnabled(true);
+			tile.setBackground(null);
+		}
+		
+		for (JButton tile: isTileVisited.keySet()) {
+			isTileVisited.put(tile, false);
+		}
+		
+		generateMines(numberOfMines);
+	}
+	
+	private void quit() {
+		frame.dispose();
+	}
+	
+	private void revealAllMines() {
+		for (JButton tile : isTileMine.keySet()) {
+			tile.setEnabled(false);
+			tile.setText(isTileMine.get(tile).toString());
+			if (isTileMine.get(tile) == -1) {
+				tile.setBackground(Color.RED);
 			}
 		}
 	}
